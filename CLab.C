@@ -1,18 +1,32 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <signal.h>
+#include <time.h>
 
+int child_pids[1000];
+int parent_hp = 0;
 int MAX_CHILDREN = 10;
 int numChildren = 0;
 
 void sig_handler_parent(int signum)
 {
   printf("\nParent: Inside handler function\n");
+  for(int i = 0; i < numChildren; i ++)
+  {
+    kill(child_pids[i], SIGUSR2);
+  }
+  exit(0);
 }
 
 void sig_handler_child(int signum)
 {
   printf("\nChild:Inside handler function\n");
+  printf("parent hp is %d!!!!\n", parent_hp);
+  //printf("%d", getpid());
+  printf("Now dying!!!%d\n", getpid());
+  
+  exit(0);
 }
 void kidKiller(int kidToKill)
 {
@@ -25,57 +39,41 @@ void kidKiller(int kidToKill)
 
 }
 
-void sigIntHandler(int signum)
-{
-  sleep(1);
-  printf("\nInterupted\n");
-  int varToPass = getpid();
-  kidKiller(varToPass);
-  sleep(1);
-}
 
 int main()
 {
   //preset length of array TODO it would be cool not to but I also benefit in capping
   //out the number of running procs. just as a saftey net. 
-  int arrPID[MAX_CHILDREN];
-
-  for (int a = 0; a < MAX_CHILDREN; a++)
+  time_t t; 
+  srand((unsigned) time(&t));
+  parent_hp = rand() % 10 + 5; 
+  signal(SIGINT, sig_handler_parent);
+  while(1)
   {
-    sleep(1);
-    int pid = fork();
-    //probably should have a error check here but welp 
-
-    if (pid == 0)
+    int pid = fork(); 
+    if(pid == 0)
     {
-      //child
-      numChildren++;
-      signal(SIGUSR1, sig_handler_child);
+      printf("Another kid born\n");
+      
+      signal(SIGUSR2, sig_handler_child);
+      //pause keeps the child alive 
+      pause();
+
     }
 
     else
-
     {
-      //parent
-      arrPID[a] = pid;
-      sleep(1);
-      signal(SIGUSR1, sig_handler_parent);
-      signal(SIGINT, sigIntHandler);
-      printf("PID: %d\n", getpid());
+      //I am daddy 
 
-      while (1)
+      child_pids[numChildren] = pid; 
+      numChildren ++; 
+      // prevent race condition 
+      sleep(1); 
 
-      {
-        kill(pid, SIGUSR1);
-        sleep(1);
-      }
+
+      //kill(pid, SIGUSR2);
     }
+    
   }
-//print out array 
-  for (int a = 0; a < MAX_CHILDREN; a++)
-  {
-    printf("PID: %d\n", arrPID[a]); 
-  }
-  //let the user know they can SIGINT in order to start killing orphans
-  printf("max number of kids have been born...\n time to kill some kids\nHit 'cntrl C' to see some killing\n");
+  return 0;
 }
